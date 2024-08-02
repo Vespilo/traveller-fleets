@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background-color: #000;
+        }
+
+        #controlBar {
+            position: absolute;
+            color: white
+        }
+
+        #selectedShip {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background-color: white;
+            padding: 1em;
+            min-width: 10em;
+        }
+    </style>
+</head>
+<body>
+<nav id="controlBar">
+    <span>Time since start: <span id="timesincestart"></span></span>
+    <span>Zoom: <span id="scale"></span></span>
+    <button onclick="zoomTo(149600000, 30000)">Zoom To Earth</button>
+    <button onclick="pauseGame()">Run</button>
+    <button onclick="singleTick()">Tick</button>
+</nav>
+
+<div id="selectedShip">
+    Selected: <span id="shipSelected"></span><br>
+    Vector: <span id="shipHeading"></span><br>
+    Thrust: <span id="shipThrust"></span><br>
+
+</div>
+<canvas id="solarSystemCanvas"></canvas>
+
+<script>
+    let minutesSinceStart = 0
+    let selectedShip
+    let running = false
+
+    function pauseGame() {
+        running = !running
+    }
+
+    function singleTick() {
+        for (let i = 0; i < ships.length; i++) {
+            const ship = ships[i]
+            ship.move()
+        }
+        draw()
+
+        minutesSinceStart += 6
+    }
+
+    function gameLoop() {
+        window.requestAnimationFrame(gameLoop);
+
+        tick();
+        updateUI()
+    }
+
+    function tick() {
+        if (running) {
+            for (let i = 0; i < ships.length; i++) {
+                const ship = ships[i]
+                ship.calculateVector()
+                ship.move()
+            }
+
+            minutesSinceStart += 6
+        }
+        draw()
+    }
+
+    function zoomTo(x, y, scaleSize) {
+        scale = scaleSize
+        offsetX = (canvas.width / 2) - (x / kmPerPixel * scale)
+        offsetY = (canvas.height / 2) - (y / kmPerPixel * scale)
+        draw()
+    }
+
+    const canvas = document.getElementById('solarSystemCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Initial scale and position
+    let scale = 3;
+    let offsetX = canvas.width / 2;
+    let offsetY = canvas.height / 2;
+
+
+    // Conversion factor to fit the celestial bodies on the canvas at the initial scale
+    const kmPerPixel = 1000000;
+
+    // Celestial bodies data
+    const bodies = [
+        {name: "Sun", x: 0, y: 0, radius: 696340, color: "yellow"},
+        {name: "Mercury", x: 57910000, y: 0, radius: 2439, color: "grey"},
+        {name: "Venus", x: 108200000, y: 0, radius: 6051, color: "orange"},
+        {name: "Earth", x: 149600000, y: 0, radius: 6371, color: "green"},
+        {name: "Mars", x: 227900000, y: 0, radius: 3389, color: "red"},
+        {name: "Jupiter", x: 715000000, y: 0, radius: 69911, color: "brown"},
+        {name: "Saturn", x: 1433449370, y: 0, radius: 58232, color: "blue"},
+        // Add more planets as needed
+    ];
+
+    class Ship {
+        constructor(name, x, y, thrust, color) {
+            this.name = name
+            this.x = x
+            this.y = y
+            this.color = color
+            this.maxThrust = thrust
+            this.vector = [0, 0]
+            this.thrust = [0, 0]
+        }
+
+        calculateVector() {
+            console.log([this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]])
+            return [this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]]
+        }
+
+
+        move() {
+
+            this.vector = this.calculateVector()
+            this.x += this.vector[0] * 6
+            this.y += this.vector[1] * 6
+        }
+    }
+
+    // Ships
+    const ships = [
+        new Ship("Fleet 1", (57910000 + 2439 + 600), 0, 6, "blue"),
+        new Ship("Fleet 2", (227900000 + 3389 - 600), 60000000, 6, "red"),
+    ]
+
+    ships[0].thrust = [6, 0]
+
+
+    function updateUI() {
+
+        document.querySelector('#scale').textContent = Math.round(scale)
+        document.querySelector('#timesincestart').textContent = minutesSinceStart
+        if (selectedShip) {
+            document.querySelector('#shipSelected').textContent = selectedShip.name
+            document.querySelector('#shipHeading').textContent = selectedShip.vector || "[0, 0]"
+            document.querySelector('#shipThrust').textContent = selectedShip.thrust || "[0, 0]"
+        }
+    }
+
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
+        // Draw Sun
+        // ctx.fillStyle = 'yellow';
+        // ctx.beginPath();
+        // ctx.arc(0, 0, bodies[0].radius / kmPerPixel, 0, Math.PI * 2);
+        // ctx.fill();
+
+        // Draw planets
+        for (let i = 0; i < bodies.length; i++) {
+            const body = bodies[i];
+            ctx.fillStyle = body.color || 'red';
+            ctx.beginPath();
+            ctx.arc(body.x / kmPerPixel, body.y / kmPerPixel, body.radius / kmPerPixel, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Orbit
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 0.5 / scale;
+            ctx.beginPath();
+            ctx.arc(0, 0, body.x / kmPerPixel, 0, Math.PI * 2)
+            ctx.stroke();
+
+        }
+
+
+        // Draw Ships
+        for (let i = 0; i < ships.length; i++) {
+            const ship = ships[i]
+            ctx.fillStyle = ship.color
+            ctx.beginPath();
+            ctx.rect(ship.x / kmPerPixel, ship.y / kmPerPixel, 50 / scale, 50 / scale)
+            ctx.fill();
+            ctx.font = `${20 / scale}px arial`;
+            ctx.fillStyle = "white"
+            ctx.fillText(ship.name, ship.x / kmPerPixel, ship.y / kmPerPixel);
+
+
+            // Draw Ghost
+            let kmPerTurn = 0.06
+            const kmPerLargeTurn = kmPerTurn * 100
+            const v = ship.calculateVector()
+
+            ctx.fillStyle = "white"
+            ctx.lineWidth = 5 / scale;
+            //ctx.setLineDash([500 / kmPerPixel, 150 / kmPerPixel]);
+            ctx.strokeStyle = "white";
+            ctx.beginPath();
+            ctx.moveTo(ship.x / kmPerPixel, ship.y / kmPerPixel);
+            ctx.lineTo((ship.x + kmPerLargeTurn * v[0]) / kmPerPixel, (ship.y + kmPerLargeTurn * v[1]) / kmPerPixel);
+            ctx.stroke();
+
+
+            if (scale >= 1000) {
+                // Draw Very Long Range
+                ctx.strokeStyle = "white";
+                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
+                ctx.lineWidth = 1 / scale;
+                ctx.beginPath();
+                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 50000 / kmPerPixel, 0, Math.PI * 2)
+                ctx.closePath();
+                ctx.stroke();
+
+                // Draw Long Range
+                ctx.strokeStyle = "white";
+                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
+                ctx.lineWidth = 1 / scale;
+                ctx.beginPath();
+                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 25000 / kmPerPixel, 0, Math.PI * 2)
+                ctx.closePath();
+                ctx.stroke();
+
+                // Draw Medium Range
+                ctx.strokeStyle = "white";
+                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
+                ctx.lineWidth = 1 / scale;
+                ctx.beginPath();
+                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 10000 / kmPerPixel, 0, Math.PI * 2)
+                ctx.closePath();
+                ctx.stroke();
+
+                // Draw Short Range
+                ctx.strokeStyle = "white";
+                ctx.setLineDash([250 / kmPerPixel, 750 / kmPerPixel]);
+                ctx.lineWidth = 1 / scale;
+                ctx.beginPath();
+                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 1250 / kmPerPixel, 0, Math.PI * 2)
+                ctx.closePath();
+                ctx.stroke();
+
+
+                // Draw Close Range
+                ctx.strokeStyle = "white";
+                ctx.setLineDash([5 / kmPerPixel, 15 / kmPerPixel]);
+                ctx.lineWidth = 1 / scale;
+                ctx.beginPath();
+                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 10 / kmPerPixel, 0, Math.PI * 2)
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+
+
+        ctx.restore();
+    }
+
+    function isNearOrbit(mouseX, mouseY) {
+        const orbitClickTolerance = 5;
+        const canvasX = (mouseX - offsetX) / scale;
+        const canvasY = (mouseY - offsetY) / scale;
+
+        for (let i = 0; i < bodies.length; i++) { // Start from 1 to skip the Sun
+            const body = bodies[i];
+            const distanceToOrbitCenter = Math.sqrt(canvasX * canvasX + canvasY * canvasY);
+            const distanceToOrbit = Math.abs(distanceToOrbitCenter - (body.x / kmPerPixel));
+
+            if (distanceToOrbit <= orbitClickTolerance / scale) {
+                // Detected a click near this orbit
+                console.log(`Clicked near the orbit of ${body.name}`);
+                return body;
+            }
+        }
+        return null;
+    }
+
+    function isShip(mouseX, mouseY) {
+        const canvasX = (mouseX - offsetX) / scale;
+        const canvasY = (mouseY - offsetY) / scale;
+
+        for (let i = 0; i < ships.length; i++) {
+            const ship = ships[i];
+
+            if ((canvasX >= ship.x / kmPerPixel && canvasX <= ship.x / kmPerPixel + 50 / scale) && (canvasY >= ship.y / kmPerPixel && canvasY <= ship.y / kmPerPixel + 50 / scale)) {
+                return ship;
+            }
+        }
+        return null;
+    }
+
+    // Event listener for zooming with mouse scroll
+    canvas.addEventListener('wheel', (event) => {
+        updateUI()
+        event.preventDefault();
+        const zoomFactor = 1.1;
+        const direction = event.deltaY > 0 ? -1 : 1;
+        const mouseX = event.clientX - canvas.offsetLeft;
+        const mouseY = event.clientY - canvas.offsetTop;
+
+        // Get the position on the canvas relative to the current zoom and offset
+        let worldX = (mouseX - offsetX) / scale;
+        let worldY = (mouseY - offsetY) / scale;
+
+
+        // Adjust scale
+        const oldScale = scale;
+        scale *= direction > 0 ? zoomFactor : 1 / zoomFactor;
+        scale = Math.min(Math.max(scale, 1 / 500000), 10000000); // Limit scale between 1km and 500,000km
+
+
+        if (selectedShip) {
+            // Center zoom on selected ship if one is selected
+            const shipX = selectedShip.x / kmPerPixel;
+            const shipY = selectedShip.y / kmPerPixel;
+
+            offsetX = (canvas.width / 2) - (shipX * scale);
+            offsetY = (canvas.height / 2) - (shipY * scale);
+
+        } else {
+            // Adjust offsets to maintain zoom center on cursor position
+            offsetX -= (worldX * scale - worldX * oldScale);
+            offsetY -= (worldY * scale - worldY * oldScale);
+        }
+
+        draw();
+    });
+
+    // Variables for dragging
+    let isDragging = false;
+    let dragStartX, dragStartY;
+
+    // Event listeners for dragging
+    canvas.addEventListener('mousedown', (event) => {
+        isDragging = true;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+    });
+
+    canvas.addEventListener('mousemove', (event) => {
+        if (isDragging) {
+            offsetX += (event.clientX - dragStartX);
+            offsetY += (event.clientY - dragStartY);
+            dragStartX = event.clientX;
+            dragStartY = event.clientY;
+            draw();
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        isDragging = false;
+    });
+
+    canvas.addEventListener('click', (event) => {
+        const mouseX = event.clientX - canvas.offsetLeft;
+        const mouseY = event.clientY - canvas.offsetTop;
+        const body = isNearOrbit(mouseX, mouseY);
+        const ship = isShip(mouseX, mouseY);
+
+        if (event.shiftKey) {
+            if(selectedShip) {
+                // Convert mouse coordinates to canvas coordinates
+                const canvasMouseX = (mouseX - offsetX) / scale;
+                const canvasMouseY = (mouseY - offsetY) / scale;
+
+                // Calculate the difference between the selected ship's position and the click position
+                const dx = canvasMouseX - (selectedShip.x / kmPerPixel);
+                const dy = canvasMouseY - (selectedShip.y / kmPerPixel);
+
+                // Compute the thrust factor
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const factorX = Math.abs(dx) / distance;
+
+                // Calculate thrust components
+                const tx = Math.ceil(selectedShip.maxThrust * factorX);
+                const ty = selectedShip.maxThrust - tx;
+
+                // Adjust thrust direction based on the direction of the vector
+                selectedShip.thrust = [dx < 0 ? -tx : tx, dy < 0 ? -ty : ty];
+            }
+        } else {
+            if (ship) {
+                zoomTo(ship.x, ship.y, scale)
+                // Action when an orbit is clicked
+                selectedShip = ship
+                console.log(`You clicked near the fleet ${ship.name}.`);
+            } else if (body) {
+                zoomTo(body.x, body.y, body.radius * 5)
+                // Action when an orbit is clicked
+                console.log(`You clicked near the orbit of ${body.name}.`);
+                selectedShip = null
+            } else {
+                selectedShip = null
+            }
+        }
+
+
+    });
+
+    canvas.addEventListener('dblclick', (event) => {
+        const mouseX = event.clientX - canvas.offsetLeft;
+        const mouseY = event.clientY - canvas.offsetTop;
+        const ship = isShip(mouseX, mouseY);
+
+
+        if (ship) {
+            zoomTo(ship.x, ship.y, 5000)
+            // Action when an orbit is clicked
+            selectedShip = ship
+            console.log(`You clicked near the fleet ${ship.name}.`);
+        }
+
+    });
+
+    window.addEventListener('keydown', (event) => {
+        if (event.key.startsWith('Arrow')) {
+            handleArrowKeys(event);
+            selectedShip.calculateVector()
+            draw()
+        }
+    });
+
+    canvas.addEventListener('contextmenu', function(e) {
+        alert("You've tried to open context menu"); //here you draw your own menu
+        e.preventDefault();
+    }, false);
+
+    function handleArrowKeys(event) {
+        const panAmount = 10; // Amount to move the view per key press
+
+        switch (event.key) {
+            case 'ArrowUp':
+                selectedShip.thrust[1] -= 1;
+                break;
+            case 'ArrowDown':
+                selectedShip.thrust[1] += 1;
+                break;
+            case 'ArrowLeft':
+                selectedShip.thrust[0] -= 1;
+                break;
+            case 'ArrowRight':
+                selectedShip.thrust[0] += 1;
+                break;
+        }
+
+        draw();
+    }
+
+    // Initial drawing
+    draw();
+
+    gameLoop()
+
+    // Resize canvas when the window size changes
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        draw();
+    });
+</script>
+</body>
+</html>
