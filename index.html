@@ -28,13 +28,20 @@
             padding: 1em;
             min-width: 10em;
         }
+
+        #contextMenu {
+            display: none;
+            position: absolute;
+            padding: 1em;
+            background-color: white;
+        }
     </style>
 </head>
 <body>
 <nav id="controlBar">
     <span>Time since start: <span id="timesincestart"></span></span>
     <span>Zoom: <span id="scale"></span></span>
-    <button onclick="zoomTo(149600000, 30000)">Zoom To Earth</button>
+    <button onclick="zoomTo(0, 0, 2)">Reset</button>
     <button onclick="pauseGame()">Run</button>
     <button onclick="singleTick()">Tick</button>
 </nav>
@@ -45,11 +52,17 @@
     Thrust: <span id="shipThrust"></span><br>
 
 </div>
+
+<div id="contextMenu">
+    <button onclick="setTarget()">Target</button>
+</div>
+
 <canvas id="solarSystemCanvas"></canvas>
 
 <script>
     let minutesSinceStart = 0
     let selectedShip
+    let targetedPosition
     let running = false
 
     function pauseGame() {
@@ -80,7 +93,6 @@
                 ship.calculateVector()
                 ship.move()
             }
-
             minutesSinceStart += 6
         }
         draw()
@@ -119,19 +131,63 @@
         // Add more planets as needed
     ];
 
+
+
     class Ship {
-        constructor(name, x, y, thrust, color) {
+        constructor(name, position, thrust, color) {
             this.name = name
-            this.x = x
-            this.y = y
+            this.position = position
             this.color = color
             this.maxThrust = thrust
+            this.heading = 0
             this.vector = [0, 0]
             this.thrust = [0, 0]
+            this.targetposition = position
+        }
+        static calculateAngle(dx, dy) {
+            const angleRadians = Math.atan2(dx, dy);
+            const angleDegrees = angleRadians * (180 / Math.PI);
+            return Math.round(((angleDegrees + 360) % 360) * 1000) / 1000; // Normalize to [0, 360) degrees
+        }
+
+        static calculateCurrentHeading(thrustX, thrustY) {
+            return Ship.calculateAngle(thrustX, thrustY);
+        }
+
+        getCurrentHeading() {
+            return Ship.calculateAngle(this.vector[0], this.vector[1]);
+        }
+
+        static calculateHeading(position, target) {
+            const dx = target[0] - position[0];
+            const dy = target[1] - position[1];
+            return Ship.calculateAngle(dx, dy);
+        }
+
+
+
+        setThrustFromHeading(angleDegrees) {
+            this.heading = angleDegrees;
+
+            // Convert angle from degrees to radians
+            const angleRadians = (90 - angleDegrees) * (Math.PI / 180);
+
+
+
+            // Calculate thrust components
+            const thrustX = this.maxThrust * Math.cos(angleRadians);
+            const thrustY = this.maxThrust * Math.sin(angleRadians);
+
+            // Compute thrust vector components
+            const totalThrust = Math.abs(thrustX) + Math.abs(thrustY);
+            const factor = this.maxThrust / totalThrust;
+
+            this.thrust = [thrustX * factor, thrustY * factor];
         }
 
         calculateVector() {
-            console.log([this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]])
+            Ship.calculateCurrentHeading(this.thrust)
+            //console.log([this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]])
             return [this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]]
         }
 
@@ -139,15 +195,25 @@
         move() {
 
             this.vector = this.calculateVector()
-            this.x += this.vector[0] * 6
-            this.y += this.vector[1] * 6
+            this.position[0] += this.vector[0] * 6
+            this.position[1] += this.vector[1] * 6
+
+            if(this.targetposition !== this.position) {
+                this.setThrustFromHeading(Ship.calculateHeading(this.position, this.targetposition))
+            }
         }
     }
 
     // Ships
     const ships = [
-        new Ship("Fleet 1", (57910000 + 2439 + 600), 0, 6, "blue"),
-        new Ship("Fleet 2", (227900000 + 3389 - 600), 60000000, 6, "red"),
+        new Ship("Fleet 1", [(57910000 + 2439 + 600), 0], 60, "blue"),
+        new Ship("Fleet 2", [(577910000 + 2439 + 600), -579120], 60, "green"),
+        new Ship("Fleet 3", [(227900000 + 3389 - 600), 60000000], 60, "red"),
+        new Ship("Fleet 4", [(-27900000 + 3389 - 600), 200000], 60, "yellow"),
+        new Ship("Fleet 5", [(579120 + 3389 - 600), -6100000], 60, "orange"),
+        new Ship("Fleet 6", [(2439 + 3389 - 600), 60000000], 60, "purple"),
+        new Ship("Fleet 7", [(227900000 + 3389 - 600), -10000000], 60, "pink"),
+        new Ship("Fleet 8", [(10000000 + 3389 - 600), 12400], 60, "white"),
     ]
 
     ships[0].thrust = [6, 0]
@@ -159,8 +225,8 @@
         document.querySelector('#timesincestart').textContent = minutesSinceStart
         if (selectedShip) {
             document.querySelector('#shipSelected').textContent = selectedShip.name
-            document.querySelector('#shipHeading').textContent = selectedShip.vector || "[0, 0]"
-            document.querySelector('#shipThrust').textContent = selectedShip.thrust || "[0, 0]"
+            document.querySelector('#shipHeading').textContent = selectedShip.getCurrentHeading() + "°" || "0"
+            document.querySelector('#shipThrust').textContent = "[" + selectedShip.thrust[0].toFixed(2) + ", " + selectedShip.thrust[1].toFixed(2) + "] | " + selectedShip.maxThrust || "[0, 0]"
         }
     }
 
@@ -171,15 +237,8 @@
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
 
-        // Draw Sun
-        // ctx.fillStyle = 'yellow';
-        // ctx.beginPath();
-        // ctx.arc(0, 0, bodies[0].radius / kmPerPixel, 0, Math.PI * 2);
-        // ctx.fill();
-
-        // Draw planets
-        for (let i = 0; i < bodies.length; i++) {
-            const body = bodies[i];
+        // Draw celestial bodies
+        bodies.forEach(body => {
             ctx.fillStyle = body.color || 'red';
             ctx.beginPath();
             ctx.arc(body.x / kmPerPixel, body.y / kmPerPixel, body.radius / kmPerPixel, 0, Math.PI * 2);
@@ -189,88 +248,40 @@
             ctx.strokeStyle = "white";
             ctx.lineWidth = 0.5 / scale;
             ctx.beginPath();
-            ctx.arc(0, 0, body.x / kmPerPixel, 0, Math.PI * 2)
+            ctx.arc(0, 0, body.x / kmPerPixel, 0, Math.PI * 2);
             ctx.stroke();
+        });
 
-        }
-
-
-        // Draw Ships
-        for (let i = 0; i < ships.length; i++) {
-            const ship = ships[i]
-            ctx.fillStyle = ship.color
+        // Draw ships
+        ships.forEach(ship => {
+            ctx.fillStyle = ship.color;
             ctx.beginPath();
-            ctx.rect(ship.x / kmPerPixel, ship.y / kmPerPixel, 50 / scale, 50 / scale)
+            ctx.rect(ship.position[0] / kmPerPixel, ship.position[1] / kmPerPixel, 50 / scale, 50 / scale);
             ctx.fill();
-            ctx.font = `${20 / scale}px arial`;
-            ctx.fillStyle = "white"
-            ctx.fillText(ship.name, ship.x / kmPerPixel, ship.y / kmPerPixel);
+            // ctx.font = `${20 / scale}px arial`;
+            // ctx.fillStyle = "white";
+            // ctx.fillText(ship.name, Math.ceil(ship.position[0] / kmPerPixel), Math.ceil(ship.position[1] / kmPerPixel));
 
-
-            // Draw Ghost
-            let kmPerTurn = 0.06
-            const kmPerLargeTurn = kmPerTurn * 100
-            const v = ship.calculateVector()
-
-            ctx.fillStyle = "white"
-            ctx.lineWidth = 5 / scale;
-            //ctx.setLineDash([500 / kmPerPixel, 150 / kmPerPixel]);
+            // Draw Ghost Lines and Ranges
             ctx.strokeStyle = "white";
+            ctx.lineWidth = 2 / scale;
+            ctx.setLineDash([])
             ctx.beginPath();
-            ctx.moveTo(ship.x / kmPerPixel, ship.y / kmPerPixel);
-            ctx.lineTo((ship.x + kmPerLargeTurn * v[0]) / kmPerPixel, (ship.y + kmPerLargeTurn * v[1]) / kmPerPixel);
+            ctx.moveTo(ship.position[0] / kmPerPixel, ship.position[1] / kmPerPixel);
+            ctx.lineTo(ship.targetposition[0] / kmPerPixel, ship.targetposition[1] / kmPerPixel);
             ctx.stroke();
-
 
             if (scale >= 1000) {
-                // Draw Very Long Range
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
-                ctx.lineWidth = 1 / scale;
-                ctx.beginPath();
-                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 50000 / kmPerPixel, 0, Math.PI * 2)
-                ctx.closePath();
-                ctx.stroke();
-
-                // Draw Long Range
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
-                ctx.lineWidth = 1 / scale;
-                ctx.beginPath();
-                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 25000 / kmPerPixel, 0, Math.PI * 2)
-                ctx.closePath();
-                ctx.stroke();
-
-                // Draw Medium Range
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([500 / kmPerPixel, 1500 / kmPerPixel]);
-                ctx.lineWidth = 1 / scale;
-                ctx.beginPath();
-                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 10000 / kmPerPixel, 0, Math.PI * 2)
-                ctx.closePath();
-                ctx.stroke();
-
-                // Draw Short Range
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([250 / kmPerPixel, 750 / kmPerPixel]);
-                ctx.lineWidth = 1 / scale;
-                ctx.beginPath();
-                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 1250 / kmPerPixel, 0, Math.PI * 2)
-                ctx.closePath();
-                ctx.stroke();
-
-
-                // Draw Close Range
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([5 / kmPerPixel, 15 / kmPerPixel]);
-                ctx.lineWidth = 1 / scale;
-                ctx.beginPath();
-                ctx.arc(ship.x / kmPerPixel, ship.y / kmPerPixel, 10 / kmPerPixel, 0, Math.PI * 2)
-                ctx.closePath();
-                ctx.stroke();
+                [50000, 25000, 10000, 1250, 10].forEach(range => {
+                    const lineDash = range === 10 ? [5 / kmPerPixel, 15 / kmPerPixel] : [500 / kmPerPixel, 1500 / kmPerPixel];
+                    ctx.setLineDash(lineDash);
+                    ctx.lineWidth = 1 / scale;
+                    ctx.beginPath();
+                    ctx.arc(ship.position[0] / kmPerPixel, ship.position[1] / kmPerPixel, range / kmPerPixel, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
             }
-        }
-
+        });
 
         ctx.restore();
     }
@@ -301,7 +312,7 @@
         for (let i = 0; i < ships.length; i++) {
             const ship = ships[i];
 
-            if ((canvasX >= ship.x / kmPerPixel && canvasX <= ship.x / kmPerPixel + 50 / scale) && (canvasY >= ship.y / kmPerPixel && canvasY <= ship.y / kmPerPixel + 50 / scale)) {
+            if ((canvasX >= ship.position[0] / kmPerPixel && canvasX <= ship.position[0] / kmPerPixel + 50 / scale) && (canvasY >= ship.position[1] / kmPerPixel && canvasY <= ship.position[1] / kmPerPixel + 50 / scale)) {
                 return ship;
             }
         }
@@ -330,8 +341,8 @@
 
         if (selectedShip) {
             // Center zoom on selected ship if one is selected
-            const shipX = selectedShip.x / kmPerPixel;
-            const shipY = selectedShip.y / kmPerPixel;
+            const shipX = selectedShip.position[0] / kmPerPixel;
+            const shipY = selectedShip.position[1] / kmPerPixel;
 
             offsetX = (canvas.width / 2) - (shipX * scale);
             offsetY = (canvas.height / 2) - (shipY * scale);
@@ -374,50 +385,37 @@
         isDragging = false;
     });
 
-    canvas.addEventListener('click', (event) => {
-        const mouseX = event.clientX - canvas.offsetLeft;
-        const mouseY = event.clientY - canvas.offsetTop;
+    function handleClick(mouseX, mouseY, shiftKey) {
         const body = isNearOrbit(mouseX, mouseY);
         const ship = isShip(mouseX, mouseY);
 
-        if (event.shiftKey) {
-            if(selectedShip) {
-                // Convert mouse coordinates to canvas coordinates
-                const canvasMouseX = (mouseX - offsetX) / scale;
-                const canvasMouseY = (mouseY - offsetY) / scale;
+        if (shiftKey && selectedShip) {
+            const canvasMouseX = (mouseX - offsetX) / scale;
+            const canvasMouseY = (mouseY - offsetY) / scale;
 
-                // Calculate the difference between the selected ship's position and the click position
-                const dx = canvasMouseX - (selectedShip.x / kmPerPixel);
-                const dy = canvasMouseY - (selectedShip.y / kmPerPixel);
-
-                // Compute the thrust factor
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const factorX = Math.abs(dx) / distance;
-
-                // Calculate thrust components
-                const tx = Math.ceil(selectedShip.maxThrust * factorX);
-                const ty = selectedShip.maxThrust - tx;
-
-                // Adjust thrust direction based on the direction of the vector
-                selectedShip.thrust = [dx < 0 ? -tx : tx, dy < 0 ? -ty : ty];
-            }
+            selectedShip.targetposition = [canvasMouseX * kmPerPixel, canvasMouseY * kmPerPixel];
+            const heading = Ship.calculateHeading(selectedShip.position, selectedShip.targetposition);
+            selectedShip.setThrustFromHeading(heading);
+        } else if (ship) {
+            zoomTo(ship.position[0], ship.position[1], scale);
+            selectedShip = ship;
+            console.log(`You clicked near the fleet ${ship.name}.`);
+        } else if (body) {
+            zoomTo(body.x, body.y, body.radius * 5);
+            console.log(`You clicked near the orbit of ${body.name}.`);
+            selectedShip = null;
         } else {
-            if (ship) {
-                zoomTo(ship.x, ship.y, scale)
-                // Action when an orbit is clicked
-                selectedShip = ship
-                console.log(`You clicked near the fleet ${ship.name}.`);
-            } else if (body) {
-                zoomTo(body.x, body.y, body.radius * 5)
-                // Action when an orbit is clicked
-                console.log(`You clicked near the orbit of ${body.name}.`);
-                selectedShip = null
-            } else {
-                selectedShip = null
-            }
+            selectedShip = null;
         }
+    }
 
+    canvas.addEventListener('click', (event) => {
+        cmenu = document.querySelector('#contextMenu')
+        cmenu.style=`display: none`
 
+        const mouseX = event.clientX - canvas.offsetLeft;
+        const mouseY = event.clientY - canvas.offsetTop;
+        handleClick(mouseX, mouseY, event.shiftKey);
     });
 
     canvas.addEventListener('dblclick', (event) => {
@@ -427,7 +425,7 @@
 
 
         if (ship) {
-            zoomTo(ship.x, ship.y, 5000)
+            zoomTo(ship.position[0], ship.position[1], 5000)
             // Action when an orbit is clicked
             selectedShip = ship
             console.log(`You clicked near the fleet ${ship.name}.`);
@@ -443,14 +441,40 @@
         }
     });
 
-    canvas.addEventListener('contextmenu', function(e) {
-        alert("You've tried to open context menu"); //here you draw your own menu
-        e.preventDefault();
+    canvas.addEventListener('contextmenu', function (event) {
+        event.preventDefault();
+        //alert("You've tried to open context menu"); //here you draw your own menu
+        const mouseX = event.clientX - canvas.offsetLeft;
+        const mouseY = event.clientY - canvas.offsetTop;
+        const ship = isShip(mouseX, mouseY);
+
+        const canvasMouseX = (mouseX - offsetX) / scale;
+        const canvasMouseY = (mouseY - offsetY) / scale;
+
+        targetedPosition = [canvasMouseX * kmPerPixel, canvasMouseY * kmPerPixel];
+
+
+        cmenu = document.querySelector('#contextMenu')
+        cmenu.style=`top: ${event.clientY}px; left: ${event.clientX}px; display: block`
+
+        if (ship) {
+            targetedPosition = ship.position
+        }
     }, false);
 
-    function handleArrowKeys(event) {
-        const panAmount = 10; // Amount to move the view per key press
+    function setTarget() {
+        // Action when an orbit is clicked
+        selectedShip.targetposition = targetedPosition
+        const t = Ship.calculateHeading(selectedShip.position, selectedShip.targetposition)
+        selectedShip.setThrustFromHeading(t)
+        console.log(`Setting course to ${targetedPosition}.`);
 
+
+        cmenu = document.querySelector('#contextMenu')
+        cmenu.style=`display: none`
+    }
+
+    function handleArrowKeys(event) {
         switch (event.key) {
             case 'ArrowUp':
                 selectedShip.thrust[1] -= 1;
