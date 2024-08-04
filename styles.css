@@ -1,0 +1,49 @@
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+    background-color: #13279f;
+}
+
+#controlBar {
+    position: absolute;
+    color: white
+}
+
+#selectedShip {
+    position: absolute;
+    top: 50px;
+    left: 10px;
+    background-color: white;
+    padding: 1em;
+    min-width: 10em;
+}
+
+#contextMenu {
+    display: none;
+    position: absolute;
+    padding: 1em;
+    background-color: white;
+}
+
+#playerFleet {
+    list-style: none;
+    padding: 0;
+}
+#playerFleet li{
+    padding: 0.5em;
+    margin-bottom: 0.5em;
+    cursor: pointer;
+    transition-duration: 0.1s;
+    border: 1px solid black;
+}
+#playerFleet li:hover{
+    background-color: rgba(0,0,0,.05);
+}
+
+.highlighted {
+    color: green!important
+}
