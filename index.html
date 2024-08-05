@@ -13,7 +13,7 @@
     <span>Current Phase: <span id="currentPhase"></span></span>
     <span>Time since start: <span id="timesincestart"></span></span>
     <span>Zoom: <span id="scale"></span></span>
-    <button onclick="zoomTo(0, 0, 2)">Reset</button>
+    <button onclick="zoomTo(0, 0, 0)">Reset</button>
     <button onclick="endTurn()">Next Phase</button>
     <button onclick="jumpTurn()">Jump</button>
 </nav>
@@ -51,7 +51,7 @@
     const SUB_PHASES = ['Movement'];
     let needs_redraw = true;
     let needs_ui_update = true;
-    let turnLengthSeconds = 600
+    let turnLengthSeconds = 6
 
     let minutesSinceStart = 0
     let selectedShip
@@ -70,8 +70,7 @@
 
 
     // Initial scale and position
-    // ToDo: Initial Scale broken, sun overload
-    let scale = 100;
+    let scale = 0.000005;
     let offsetX = CANVAS.width / 2;
     let offsetY = CANVAS.height / 2;
 
@@ -123,6 +122,8 @@
         }
 
         // Update UI for the new player and sub-phase
+        minutesSinceStart += turnLengthSeconds / 60
+        minutesSinceStart = Math.round(minutesSinceStart*100)/100
         selectedShip = null;
         needs_ui_update = true;
         needs_redraw = true;
@@ -141,6 +142,7 @@
     }
 
     function zoomTo(x, y, scaleSize = null) {
+        console.log(scale)
         scale = scaleSize || scale
         offsetX = (CANVAS.width / 2) - (x * scale)
         offsetY = (CANVAS.height / 2) - (y * scale)
@@ -195,7 +197,6 @@
             this.position = position
             this.color = color
         }
-
     }
 
     class Ship {
@@ -233,10 +234,15 @@
             this.thrust = [thrustX * factor, thrustY * factor];
         }
 
-        calculateVector(turnlength) {
+        calculateVector(turnLength) {
             Util.calculateAngleFromVectors(this.thrust[0], this.thrust[1])
+            if (this.thrust[0] > 0) {
+                console.log(this.vector)
+                console.log(this.thrust)
+                console.log(`Acceleration: ${this.thrust[0] * turnLength * GRAVITY_CONSTANT}`)
+            }
             //console.log([this.vector[0] + this.thrust[0], this.vector[1] + this.thrust[1]])
-            return [this.vector[0] + this.thrust[0] * turnlength * GRAVITY_CONSTANT, this.vector[1] + this.thrust[1] * turnlength * GRAVITY_CONSTANT]
+            return [this.vector[0] + (this.thrust[0] * turnLength * GRAVITY_CONSTANT), this.vector[1] + (this.thrust[1] * turnLength * GRAVITY_CONSTANT)]
         }
 
 
@@ -244,7 +250,8 @@
             this.vector = this.calculateVector(turnLengthSeconds)
             this.position[0] += this.vector[0] / 1000
             this.position[1] += this.vector[1] / 1000
-
+            this.position[0] = Math.round(this.position[0] * 100) / 100
+            this.position[1] = Math.round(this.position[1] * 100) / 100
             if (this.targetposition !== this.position && this.targetposition !== null) {
                 this.setThrustFromHeading(Util.calculateAngleFromPositions(this.position, this.targetposition))
             }
@@ -681,7 +688,7 @@
 
             case 'Movement':
                 currentPlayer.ships.forEach(ship => {
-                    ship.move();
+                    //ship.move();
                 });
                 break;
             case 'Sensors':

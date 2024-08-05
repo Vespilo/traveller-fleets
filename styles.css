@@ -9,8 +9,16 @@ canvas {
 }
 
 #controlBar {
+    background-color: rgba(107, 196, 229, 0.47);
+    width: 100%;
     position: absolute;
-    color: white
+    color: white;
+    display: flex;
+    align-items: center;
+    padding: 0.4em;
+}
+#controlBar > * {
+    margin-right: 1em;
 }
 
 #selectedShip {
